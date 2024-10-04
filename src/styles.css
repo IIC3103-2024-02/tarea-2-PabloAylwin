@@ -1,0 +1,4 @@
+.rotated-icon {
+    display: inline-block;
+    transition: transform 0.5s;  /* Para que la rotación sea suave */
+}
