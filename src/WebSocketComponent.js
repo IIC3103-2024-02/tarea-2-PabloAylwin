@@ -1,62 +1,65 @@
-import React, { useEffect, useState } from 'react';
-import FlightMap from './FlightMap';  // Importar el componente del mapa
+import React, { useEffect, useState, useRef } from 'react';
+import FlightMap from './FlightMap';
+import 'bootstrap/dist/css/bootstrap.min.css';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const WebSocketComponent = () => {
   const [messages, setMessages] = useState([]);
   const [chatMessage, setChatMessage] = useState("");
   const [flights, setFlights] = useState([]);
   const [planes, setPlanes] = useState([]);
-  const sessionKey = 'activeWebSocket';  // Clave para guardar el estado en localStorage
+  const [takeOffs, setTakeOffs] = useState([]);  // Despegues
+  const [landings, setLandings] = useState([]);  // Aterrizajes
+  const [crashes, setCrashes] = useState([]);  // Accidentes
+  const [planePaths, setPlanePaths] = useState({});  // Guardar las trayectorias de los aviones
+  const sessionKey = 'activeWebSocket';
+  const socketRef = useRef(null);
 
   const userId = '19625758';  // Usa tu ID de usuario real aquí
   const username = 'pabloaylwin';  // Opcional
 
+  const disconnectWebSocket = () => {
+    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify({
+        type: 'disconnect',
+        id: userId
+      }));
+      socketRef.current.close();
+      console.log("Conexión WebSocket cerrada correctamente.");
+      localStorage.removeItem(sessionKey);
+    }
+  };
+
   useEffect(() => {
-    let socket;
-
     const connectWebSocket = () => {
-      // Verificar si ya hay otra pestaña conectada con el mismo ID
-      const activeSession = localStorage.getItem(sessionKey);
-      if (activeSession) {
-        console.warn("Ya hay otra pestaña conectada con el mismo ID.");
-        return;  // Evitar abrir una nueva conexión si ya hay una activa
-      }
+      socketRef.current = new WebSocket('wss://tarea-2.2024-2.tallerdeintegracion.cl/connect');
 
-      // Marcar esta pestaña como conectada
-      localStorage.setItem(sessionKey, 'connected');
-
-      // Crear la conexión WebSocket
-      socket = new WebSocket('wss://tarea-2.2024-2.tallerdeintegracion.cl/connect');
-
-      socket.onopen = () => {
+      socketRef.current.onopen = () => {
         console.log("Conexión WebSocket establecida.");
-
-        // Envía el evento JOIN al abrir la conexión
-        const joinEvent = {
-          type: 'join',
-          id: userId,
-          username: username
-        };
-        socket.send(JSON.stringify(joinEvent));
+        if (socketRef.current.readyState === WebSocket.OPEN) {
+          const joinEvent = {
+            type: 'join',
+            id: userId,
+            username: username
+          };
+          socketRef.current.send(JSON.stringify(joinEvent));
+        }
       };
 
-      socket.onmessage = (event) => {
+      socketRef.current.onmessage = (event) => {
         const data = JSON.parse(event.data);
         console.log("Mensaje recibido:", data);
         handleEvent(data);
       };
 
-      socket.onerror = (error) => {
+      socketRef.current.onerror = (error) => {
         console.error("WebSocket Error: ", error);
       };
 
-      socket.onclose = (event) => {
+      socketRef.current.onclose = (event) => {
         console.log("Conexión WebSocket cerrada:", event.reason);
-        
-        // Eliminar el estado de conexión del `localStorage`
         localStorage.removeItem(sessionKey);
-
-        // Intentar reconectar si no fue denegado
         if (event.reason !== 'denied') {
           setTimeout(connectWebSocket, 5000);
         }
@@ -71,7 +74,6 @@ const WebSocketComponent = () => {
         case 'denied':
           console.error("Conexión denegada:", event.reason);
           alert("Ya estás conectado con este ID en otra sesión.");
-          // Detener cualquier intento de reconexión si es denegado
           localStorage.removeItem(sessionKey);
           break;
         case 'disconnected':
@@ -79,21 +81,19 @@ const WebSocketComponent = () => {
           alert("Fuiste desconectado por el servidor.");
           break;
         case 'flights':
-          handleFlights(event.flights);
           setFlights(Object.values(event.flights));  // Actualizar vuelos
           break;
         case 'plane':
           handlePlane(event.plane);
-          setPlanes((prevPlanes) => [...prevPlanes, event.plane]);  // Actualizar aviones
           break;
         case 'take-off':
-          handleTakeOff(event.flight_id);
+          handleTakeOff(event);
           break;
         case 'landing':
-          handleLanding(event.flight_id);
+          handleLanding(event);
           break;
         case 'crashed':
-          handleCrash(event.flight_id);
+          handleCrash(event);
           break;
         case 'message':
           handleMessage(event.message);
@@ -103,51 +103,112 @@ const WebSocketComponent = () => {
       }
     };
 
-    const handleFlights = (flights) => {
-      console.log("Vuelos activos:", flights);
+    // Función para detectar si el avión cruza el borde del mapa
+    const hasCrossedBoundary = (prevPosition, currentPosition) => {
+      const longDiff = Math.abs(prevPosition[1] - currentPosition[1]);
+
+      // Si la diferencia de longitud es mayor que un umbral (por ejemplo, 180 grados), significa que cruzó el límite
+      return longDiff > 180;
     };
 
+    // Actualizar la trayectoria del avión evitando la línea larga horizontal
+    const updatePlanePath = (plane) => {
+      setPlanePaths((prevPaths) => {
+        const prevPath = prevPaths[plane.flight_id] || [];
+        const lastPosition = prevPath[prevPath.length - 1];
+        const currentPosition = [plane.position.lat, plane.position.long];
+
+        if (lastPosition && hasCrossedBoundary(lastPosition, currentPosition)) {
+          // Si cruza el límite, comenzamos una nueva trayectoria sin conectar el último punto
+          return {
+            ...prevPaths,
+            [plane.flight_id]: [currentPosition]
+          };
+        } else {
+          // Si no cruza el límite, agregamos la nueva posición normalmente
+          return {
+            ...prevPaths,
+            [plane.flight_id]: [...prevPath, currentPosition]
+          };
+        }
+      });
+    };
+
+    // Dentro del WebSocket onmessage para manejar los planes
     const handlePlane = (plane) => {
       console.log("Actualización de avión:", plane);
+      setPlanes((prevPlanes) => {
+        const updatedPlanes = prevPlanes.filter(p => p.flight_id !== plane.flight_id);
+        return [...updatedPlanes, plane];
+      });
+
+      // Actualizar la trayectoria del avión y verificar si cruza el borde
+      updatePlanePath(plane);
     };
 
-    const handleTakeOff = (flight_id) => {
-      console.log("Despegue del vuelo:", flight_id);
+    const handleTakeOff = (takeOff) => {
+      console.log("Despegue:", takeOff.flight_id);
+      setTakeOffs((prevTakeOffs) => [...prevTakeOffs, takeOff]);
     };
 
-    const handleLanding = (flight_id) => {
-      console.log("Aterrizaje del vuelo:", flight_id);
+    const handleLanding = (landing) => {
+      console.log("Aterrizaje:", landing.flight_id);
+      setLandings((prevLandings) => [...prevLandings, landing]);
     };
 
-    const handleCrash = (flight_id) => {
-      console.log("Accidente del vuelo:", flight_id);
+    const handleCrash = (crash) => {
+      console.log("Accidente:", crash.flight_id);
+    
+      // Encontrar el avión correspondiente
+      const crashedPlane = planes.find(p => p.flight_id === crash.flight_id);
+      
+      if (crashedPlane) {
+        // Actualizar la lista de accidentes con la última posición del avión accidentado
+        setCrashes((prevCrashes) => [...prevCrashes, {
+          flight_id: crash.flight_id,
+          position: crashedPlane.position // Usamos la última posición del avión
+        }]);
+    
+        // Eliminar el avión accidentado de la lista de aviones activos
+        setPlanes((prevPlanes) => prevPlanes.filter(p => p.flight_id !== crash.flight_id));
+      }
+    
+      toast.error(`Accidente del vuelo ${crash.flight_id}`);
+    
+      // Eliminar el crash después de 1 minuto
+      setTimeout(() => {
+        setCrashes((prevCrashes) => prevCrashes.filter(c => c.flight_id !== crash.flight_id));
+      }, 60000);
     };
 
     const handleMessage = (message) => {
       console.log("Mensaje recibido:", message);
-      setMessages((prev) => [...prev, message]);
+      
+      // Capturar fecha y hora actual
+      const now = new Date();
+      const formattedTime = now.toLocaleTimeString();
+      const formattedDate = now.toLocaleDateString();
+    
+      // Incluir la fecha y hora en el mensaje
+      const messageWithTime = {
+        ...message,
+        time: `${formattedDate} ${formattedTime}`
+      };
+    
+      setMessages((prev) => [...prev, messageWithTime]);
     };
 
     connectWebSocket();
 
-    // Cerrar el WebSocket al salir o recargar la página
     window.onbeforeunload = () => {
-      localStorage.removeItem(sessionKey);  // Limpiar `localStorage` al cerrar
-      if (socket) {
-        socket.close();
-      }
+      disconnectWebSocket();
     };
 
-    // Limpiar WebSocket al desmontar el componente
     return () => {
-      localStorage.removeItem(sessionKey);  // Limpiar `localStorage` al desmontar
-      if (socket) {
-        socket.close();
-      }
+      disconnectWebSocket();
     };
-  }, []);
+  }, [planes]);
 
-  // Función para enviar mensajes de chat
   const sendChatMessage = () => {
     if (!chatMessage.trim()) return;
 
@@ -156,40 +217,97 @@ const WebSocketComponent = () => {
       content: chatMessage
     };
 
-    const socket = new WebSocket('wss://tarea-2.2024-2.tallerdeintegracion.cl/connect');
-    socket.onopen = () => {
-      socket.send(JSON.stringify(chatEvent));
-      setChatMessage("");  // Limpiar el mensaje después de enviarlo
-    };
+    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify(chatEvent));
+      setChatMessage("");
+    } else {
+      console.error('El WebSocket no está abierto para enviar mensajes.');
+    }
   };
 
+  // Función para ordenar los vuelos primero por aeropuerto de origen, luego por aeropuerto de destino
+  const sortedFlights = flights.sort((a, b) => {
+    if (a.departure.name < b.departure.name) return -1;
+    if (a.departure.name > b.departure.name) return 1;
+    if (a.destination.name < b.destination.name) return -1;
+    if (a.destination.name > b.destination.name) return 1;
+    return 0;
+  });
+
   return (
-    <>
-      {/* Sección de mensajes de chat */}
-      <div>
-        <h1>Mensajes recibidos:</h1>
-        <ul>
-          {messages.map((msg, index) => (
-            <li key={index}>{msg.name}: {msg.content} ({msg.level})</li>
-          ))}
-        </ul>
+    <div className="container-fluid">
+      <ToastContainer />  {/* Contenedor para las notificaciones de toast */}
+      <div className="row">
+        {/* Mapa de vuelos y aviones */}
+        <div className="col-md-8" style={{ height: '600px' }}>
+          <h1>Mapa de vuelos y aviones</h1>
+          <FlightMap 
+            flights={flights} 
+            planes={planes}
+            planePaths={planePaths}  // Trajectory of planes
+            takeOffs={takeOffs}
+            landings={landings}
+            crashes={crashes}  // Pasar crashes al mapa
+          />
+        </div>
 
-        <h2>Enviar mensaje de chat:</h2>
-        <input
-          type="text"
-          value={chatMessage}
-          onChange={(e) => setChatMessage(e.target.value)}
-          placeholder="Escribe un mensaje"
-        />
-        <button onClick={sendChatMessage}>Enviar</button>
+        {/* Chat */}
+        <div className="col-md-4 d-flex flex-column" style={{ height: '600px' }}>
+          <h2>Chat</h2>
+          <div className="overflow-auto mb-2 flex-grow-1" style={{ border: '1px solid #ccc', padding: '10px' }}>
+            <ul>
+              {messages.map((msg, index) => (
+                <li key={index} style={{ color: msg.level === "warn" ? 'red' : 'inherit' }}>
+                  <strong>{msg.name}:</strong> {msg.content} 
+                  <em>({msg.level})</em> 
+                  <span className="text-muted" style={{ marginLeft: '10px' }}>
+                    {msg.time}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="input-group">
+            <input
+              type="text"
+              className="form-control"
+              value={chatMessage}
+              onChange={(e) => setChatMessage(e.target.value)}
+              placeholder="Escribe un mensaje"
+            />
+            <button className="btn btn-primary" onClick={sendChatMessage}>
+              Enviar
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Sección del mapa */}
-      <div>
-        <h1>Mapa de vuelos y aviones</h1>
-        <FlightMap flights={flights} planes={planes} />  {/* Pasar los vuelos y aviones al mapa */}
+      {/* Tabla de vuelos */}
+      <div className="row mt-4">
+        <div className="col">
+          <h2>Tabla de vuelos</h2>
+          <table className="table table-striped">
+            <thead>
+              <tr>
+                <th>ID Vuelo</th>
+                <th>Aeropuerto de salida</th>
+                <th>Aeropuerto de destino</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedFlights.map((flight) => (
+                <tr key={flight.id}>
+                  <td>{flight.id}</td>
+                  <td>{flight.departure.name} ({flight.departure.city.name}, {flight.departure.city.country.name})</td>
+                  <td>{flight.destination.name} ({flight.destination.city.name}, {flight.destination.city.country.name})</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </>
+    </div>
   );
 };
 
