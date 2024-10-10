@@ -9,8 +9,8 @@ const WebSocketComponent = () => {
   const [chatMessage, setChatMessage] = useState("");
   const [flights, setFlights] = useState([]);
   const [planes, setPlanes] = useState([]);
-  const [takeOffs, setTakeOffs] = useState([]);  // Despegues
-  const [landings, setLandings] = useState([]);  // Aterrizajes
+  const [takeOffs] = useState([]);  // Despegues
+  const [landings] = useState([]);  // Aterrizajes
   const [crashes, setCrashes] = useState([]);  // Accidentes
   const [planePaths, setPlanePaths] = useState({});  // Guardar las trayectorias de los aviones
   const sessionKey = 'activeWebSocket';
@@ -164,7 +164,7 @@ const WebSocketComponent = () => {
         setPlanes((prevPlanes) =>
           prevPlanes.filter((plane) => plane.flight_id !== takeOff.flight_id)
         );
-      }, 60000);  // Cambia a 60000 (1 minuto) o al tiempo deseado
+      }, 10000);  // Cambia a 60000 (1 minuto) o al tiempo deseado
     };
 
     const handleLanding = (landing) => {
