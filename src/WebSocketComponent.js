@@ -148,12 +148,44 @@ const WebSocketComponent = () => {
 
     const handleTakeOff = (takeOff) => {
       console.log("Despegue:", takeOff.flight_id);
-      setTakeOffs((prevTakeOffs) => [...prevTakeOffs, takeOff]);
+      
+      // Actualizar el estado del avión a 'takeoff'
+      setPlanes((prevPlanes) => {
+        const updatedPlanes = prevPlanes.map((plane) =>
+          plane.flight_id === takeOff.flight_id
+            ? { ...plane, status: 'takeoff' }
+            : plane
+        );
+        return updatedPlanes;
+      });
+    
+      // Eliminar el estado de despegue después de 1 minuto (o el tiempo que definas)
+      setTimeout(() => {
+        setPlanes((prevPlanes) =>
+          prevPlanes.filter((plane) => plane.flight_id !== takeOff.flight_id)
+        );
+      }, 60000);  // Cambia a 60000 (1 minuto) o al tiempo deseado
     };
 
     const handleLanding = (landing) => {
       console.log("Aterrizaje:", landing.flight_id);
-      setLandings((prevLandings) => [...prevLandings, landing]);
+    
+      // Actualizar el estado del avión a 'arrived'
+      setPlanes((prevPlanes) => {
+        const updatedPlanes = prevPlanes.map((plane) =>
+          plane.flight_id === landing.flight_id
+            ? { ...plane, status: 'arrived' }
+            : plane
+        );
+        return updatedPlanes;
+      });
+    
+      // Eliminar el avión del mapa después de 1 minuto
+      setTimeout(() => {
+        setPlanes((prevPlanes) =>
+          prevPlanes.filter((plane) => plane.flight_id !== landing.flight_id)
+        );
+      }, 10000);
     };
 
     const handleCrash = (crash) => {
@@ -207,7 +239,7 @@ const WebSocketComponent = () => {
     return () => {
       disconnectWebSocket();
     };
-  }, [planes]);
+  }, []);
 
   const sendChatMessage = () => {
     if (!chatMessage.trim()) return;

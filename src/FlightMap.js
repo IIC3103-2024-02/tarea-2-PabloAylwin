@@ -6,8 +6,8 @@ import planeIcon from './plane-solid.svg';  // Ruta de la imagen del avión
 import originPin from './map-pin-solid-3.svg';  // Ruta del icono de aeropuerto de origen
 import destPin from './map-pin-solid-2.svg';  // Ruta del icono de aeropuerto de destino
 import crashIcon from './skull-crossbones-solid.svg';  // Ruta del ícono de accidente
-import takeoffIcon from './plane-arrival-solid.svg';  // Imagen para despegue
-import landingIcon from './plane-departure-solid.svg';  // Imagen para aterrizaje
+import landingIcon from './plane-arrival-solid.svg';  // Imagen para despegue
+import takeoffIcon from './plane-departure-solid.svg';  // Imagen para aterrizaje
 import './styles.css';  // Importar el archivo CSS
 
 // Crear un ícono para los aeropuertos
@@ -115,45 +115,46 @@ const FlightMap = ({ flights = [], planes = [], planePaths = {}, takeoffs = [], 
 
       {/* Mostrar aviones */}
       {planes.map((plane) => {
-        let icon;
-        let rotationAngle = 0;
-        
-        const flight = flights.find(f => f.id === plane.flight_id);
+      let icon;
+      let rotationAngle = 0;
+      
+      const flight = flights.find(f => f.id === plane.flight_id);
 
-        if (plane.status === 'takeoff') {
-          icon = takeoffMarkerIcon;  
-        } else if (plane.status === 'landing') {
-          icon = landingMarkerIcon;  
-        } else {
-          if (flight && flight.destination && flight.destination.location) {
-            const destinationPosition = [flight.destination.location.lat, flight.destination.location.long];
-            const planePosition = [plane.position.lat, plane.position.long];
-            rotationAngle = calculateRotationAngle(planePosition, destinationPosition);
-          }
-          icon = createRotatedIcon(rotationAngle);  
+      // Cambiar el ícono dependiendo del estado del avión
+      if (plane.status === 'takeoff') {
+        icon = takeoffMarkerIcon;  // Ícono para el estado de despegue
+      } else if (plane.status === 'arrived') {
+        icon = landingMarkerIcon;  // Ícono para aterrizaje
+      } else {
+        if (flight && flight.destination && flight.destination.location) {
+          const destinationPosition = [flight.destination.location.lat, flight.destination.location.long];
+          const planePosition = [plane.position.lat, plane.position.long];
+          rotationAngle = calculateRotationAngle(planePosition, destinationPosition);
         }
+        icon = createRotatedIcon(rotationAngle);  // Ícono para aviones volando
+      }
 
-        return (
-          <React.Fragment key={plane.flight_id}>
-            <Marker
-              position={[plane.position.lat, plane.position.long]}
-              icon={icon}
-            >
-              <Popup>
-                <p><strong>ID Vuelo:</strong> {plane.flight_id}</p>
-                <p><strong>Aerolínea:</strong> {plane.airline.name}</p>
-                <p><strong>Capitán:</strong> {plane.captain}</p>
-                <p><strong>Estado:</strong> {plane.status}</p>
-                <p><strong>ETA:</strong> {plane.ETA}</p>
-              </Popup>
-            </Marker>
+      return (
+        <React.Fragment key={plane.flight_id}>
+          <Marker
+            position={[plane.position.lat, plane.position.long]}
+            icon={icon}
+          >
+            <Popup>
+              <p><strong>ID Vuelo:</strong> {plane.flight_id}</p>
+              <p><strong>Aerolínea:</strong> {plane.airline.name}</p>
+              <p><strong>Capitán:</strong> {plane.captain}</p>
+              <p><strong>Estado:</strong> {plane.status}</p>
+              <p><strong>ETA:</strong> {plane.ETA}</p>
+            </Popup>
+          </Marker>
 
-            {planePaths[plane.flight_id] && plane.status === 'flying' && (
-              <Polyline positions={planePaths[plane.flight_id]} color="darkgreen" />
-            )}
-          </React.Fragment>
-        );
-      })}
+          {planePaths[plane.flight_id] && plane.status === 'flying' && (
+            <Polyline positions={planePaths[plane.flight_id]} color="darkgreen" />
+          )}
+        </React.Fragment>
+      );
+    })}
 
       {takeoffs.map((takeoff) => (
         takeoff.position && (
