@@ -1,24 +1,9 @@
 {
-    "env": {
-      "browser": true,
-      "es2021": true
-    },
-    "extends": [
-      "eslint:recommended",
-      "plugin:react/recommended"
-    ],
-    "parserOptions": {
-      "ecmaFeatures": {
-        "jsx": true
-      },
-      "ecmaVersion": 12,
-      "sourceType": "module"
-    },
-    "plugins": [
-      "react"
-    ],
-    "rules": {
-      "react-hooks/exhaustive-deps": "warn",
-      "no-unused-vars": "warn"
-    }
+  "plugins": [
+    "react-hooks"
+  ],
+  "rules": {
+    "react-hooks/rules-of-hooks": "error", // Verifica las reglas de hooks
+    "react-hooks/exhaustive-deps": "warn"  // Verifica las dependencias de hooks
   }
+}

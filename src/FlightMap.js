@@ -9,6 +9,7 @@ import crashIcon from './skull-crossbones-solid.svg';  // Ruta del ícono de acc
 import landingIcon from './plane-arrival-solid.svg';  // Imagen para despegue
 import takeoffIcon from './plane-departure-solid.svg';  // Imagen para aterrizaje
 import './styles.css';  // Importar el archivo CSS
+import PropTypes from 'prop-types';
 
 // Crear un ícono para los aeropuertos
 const airportOriginIcon = L.icon({
@@ -195,6 +196,16 @@ const FlightMap = ({ flights = [], planes = [], planePaths = {}, takeoffs = [], 
       ))}
     </MapContainer>
   );
+};
+
+// Agrega esta parte para definir PropTypes
+FlightMap.propTypes = {
+  flights: PropTypes.array.isRequired,
+  planes: PropTypes.array.isRequired,
+  planePaths: PropTypes.object.isRequired,
+  takeoffs: PropTypes.array.isRequired,
+  landings: PropTypes.array.isRequired,
+  crashes: PropTypes.array.isRequired
 };
 
 export default FlightMap;
