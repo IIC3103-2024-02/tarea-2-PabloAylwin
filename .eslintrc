@@ -1,9 +1,0 @@
-{
-  "plugins": [
-    "react-hooks"
-  ],
-  "rules": {
-    "react-hooks/rules-of-hooks": "error", // Verifica las reglas de hooks
-    "react-hooks/exhaustive-deps": "warn"  // Verifica las dependencias de hooks
-  }
-}
