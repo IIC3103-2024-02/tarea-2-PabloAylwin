@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useEffect, useState, useRef } from 'react';
 import FlightMap from './FlightMap';
 import 'bootstrap/dist/css/bootstrap.min.css';
